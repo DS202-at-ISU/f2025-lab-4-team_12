@@ -1,0 +1,107 @@
+---
+title: "Progress Report"
+author: "Nayan Menezes"
+date: "2025-11-21"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(rvest)
+library(tidyverse)
+library(Lahman)
+library(stringr)
+library(stringi)
+library(readr)
+
+url <- "https://www.baseball-reference.com/awards/hof_2025.shtml"
+html <- read_html(url)
+tables <- html |> html_table(fill=TRUE)
+
+hof <- Lahman::HallOfFame
+bbwaa <- tables[[1]]
+colnames(bbwaa) <- bbwaa[1, ]
+bbwaa <- bbwaa[-1, ] 
+names(bbwaa)[2] <- "Full Name"
+head(bbwaa)
+names(bbwaa)
+```
+
+```{r}
+bbwaa <- bbwaa %>%
+  select(`Rk`, `Full Name`, Votes, `%vote`)
+
+bbwaa <- bbwaa %>% 
+  mutate(Votes = as.numeric(Votes)) %>% 
+  mutate(
+  yearID = 2025,
+  votedBy = "BBWAA",
+  ballots = 394,
+  needed = 296,
+  inducted = ifelse(Votes>=296, "Y", "N"),
+  category = NA,
+  needed_note = NA
+) %>% rename(
+  votes = Votes
+)
+
+People <- People %>% mutate(
+  `Full Name`=paste(`nameFirst`, `nameLast`)
+)
+
+People <- People %>% mutate(
+  `Full Name` = paste(
+    str_replace(nameFirst,"\\. ", "."),
+    nameLast)
+)
+
+People <- People %>%
+  mutate(
+    `Full Name` = stri_trans_general(`Full Name`, "Latin-ASCII") %>%
+    str_squish()
+  )
+
+bbwaa <- bbwaa %>%
+  mutate(
+    `Full Name` = str_replace(`Full Name`, "^X-", "") %>%
+        stri_trans_general("Latin-ASCII") %>%
+        str_squish()
+  )
+
+bbwaa <- bbwaa %>% left_join(
+  People %>% select(`Full Name`, playerID), 
+  by="Full Name")
+
+bbwaa <- bbwaa %>%
+  left_join(
+    hof %>% filter(yearID == 2025) %>% select(playerID, category, needed_note, votedBy),
+    by = "playerID"
+  ) %>%
+  rename(
+    category = category.y,
+    needed_note = needed_note.y,
+    votedBy = votedBy.y
+  ) %>%
+  select(-category.x, -needed_note.x, -votedBy.x)
+
+bbwaa <- bbwaa %>%
+  filter(playerID != "rodrifr04") # player has duplicate playerID's
+
+## using actual HOF Data with scraped 2025 data
+hof %>% 
+  ggplot(aes(x = yearID, fill = inducted)) +
+  geom_bar() +
+  xlim(c(1936, 2025))
+
+hof <- hof %>%
+  filter(yearID != 2025)
+
+hof <- bind_rows(hof, bbwaa)
+
+hof %>% 
+  ggplot(aes(x = yearID, fill = inducted)) +
+  geom_bar() +
+  xlim(c(1936, 2025))
+
+write_csv(bbwaa, "HallOfFame_2025.csv")
+```
