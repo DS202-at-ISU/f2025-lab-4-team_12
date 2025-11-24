@@ -14,6 +14,8 @@ library(stringr)
 library(stringi)
 library(readr)
 
+#scraping data
+
 url <- "https://www.baseball-reference.com/awards/hof_2025.shtml"
 html <- read_html(url)
 tables <- html |> html_table(fill=TRUE)
@@ -28,6 +30,7 @@ names(bbwaa)
 ```
 
 ```{r}
+#data cleaning + preparation to insert into HOF Table
 bbwaa <- bbwaa %>%
   select(`Rk`, `Full Name`, Votes, `%vote`)
 
@@ -44,6 +47,8 @@ bbwaa <- bbwaa %>%
 ) %>% rename(
   votes = Votes
 )
+
+#ensuring names are uniform among both HOF and 2025 data
 
 People <- People %>% mutate(
   `Full Name`=paste(`nameFirst`, `nameLast`)
@@ -68,6 +73,8 @@ bbwaa <- bbwaa %>%
         str_squish()
   )
 
+#bringing in player ID, category, and votedBy from Lahman data
+
 bbwaa <- bbwaa %>% left_join(
   People %>% select(`Full Name`, playerID), 
   by="Full Name")
@@ -87,11 +94,13 @@ bbwaa <- bbwaa %>%
 bbwaa <- bbwaa %>%
   filter(playerID != "rodrifr04") # player has duplicate playerID's
 
-## using actual HOF Data with scraped 2025 data
+#using actual HOF Data with scraped 2025 data
 hof %>% 
   ggplot(aes(x = yearID, fill = inducted)) +
   geom_bar() +
   xlim(c(1936, 2025))
+
+#removing Lahman's 2025 data and inserting my own
 
 hof <- hof %>%
   filter(yearID != 2025)
@@ -102,6 +111,8 @@ hof %>%
   ggplot(aes(x = yearID, fill = inducted)) +
   geom_bar() +
   xlim(c(1936, 2025))
+
+#writing data to CSV
 
 write_csv(bbwaa, "HallOfFame_2025.csv")
 ```
