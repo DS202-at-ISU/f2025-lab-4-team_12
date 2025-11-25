@@ -1,5 +1,68 @@
 ---
 title: "progress-report-HenryT-03"
+author: "Henry Tang"
+date: "11-24-2025"
 output: html_document
 ---
 
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(rvest)
+url <- "https://www.baseball-reference.com/awards/hof_2025.shtml"
+html <- read_html(url)
+tables <- html_table(html)
+
+df <- tables[[1]]
+head(df)
+```
+
+```{r}
+library(Lahman)
+colnames(HallOfFame)
+```
+
+```{r}
+colnames(df[])
+```
+
+```{r}
+real_headers <- df[1, ]
+col_names <- as.character(real_headers)
+col_names
+```
+
+```{r}
+colnames(df) <- make.names(as.character(df[1, ]), unique = TRUE)
+colnames(df)
+
+```
+
+```{r}
+library(dplyr)
+
+clean_numeric <- function(x) {
+  as.numeric(gsub("[^0-9]", "", x))
+}
+
+clean_percent <- function(x) {
+  as.numeric(gsub("[^0-9]", "", x))
+}
+
+df_hof <- df %>%
+  transmute(
+    playerID = tolower(gsub(" ", "", Name)),
+    yearID = 2025,
+    votedBy = "BBWAA",
+    votes = clean_numeric(Votes),
+    ballots = ceiling(votes / (clean_percent(X.vote) / 100)),
+    needed = ceiling(ballots * 0.75),
+    inducted = ifelse(clean_percent(X.vote) >= 75, "Y", "N"),
+    category = "Player",
+    needed_note = NA
+  )
+
+colnames(df_hof)
+```
