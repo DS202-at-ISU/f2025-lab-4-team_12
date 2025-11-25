@@ -1,0 +1,76 @@
+---
+title: "progress-report-KadeButter.Rmd"
+author: "Kade Butterwegge"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(rvest)
+library(dplyr)
+library(readr)
+library(Lahman)
+
+url <- "https://www.baseball-reference.com/awards/hof_2025.shtml"
+html <- read_html(url)
+tables <- html_table(html)
+
+length(tables)
+head(tables[[1]])
+```
+
+**Removing column names**
+
+```{r}
+data <- tables[[1]]
+
+if(all(sapply(data[1, ], is.character))) {
+  colnames(data) <- data[1, ]
+  data <- data[-1, ]
+}
+
+colnames(data) <- make.names(colnames(data), unique = TRUE)
+```
+
+**Converting data into numeric**
+
+```{r}
+names(data)
+
+data <- data |>
+  mutate(
+    Votes = readr::parse_number(Votes)
+  )
+```
+
+**Remove prefix's**
+
+```{r}
+data$Player <- gsub("X-", "", data$Name)
+```
+
+**Match Lahman structure**
+
+```{r}
+data <- data %>%
+  mutate(
+    playerID = NA,
+    yearID = 2025,
+    votedBy = "BBWAA",
+    inducted = ifelse(HOFm == "Y" | HOFs == "Y", "Y", "N"),
+    category = "Player",
+    needed_note = NA,
+    Ballots = Votes,
+    Needed = ceiling(Ballots * 0.75)
+  ) |>
+  select(playerID, yearID, votedBy, Ballots, Needed, Votes, inducted, category, needed_note)
+```
+
+**Write to CSV**
+```{r}
+write_csv(data, "HallOfFame_2025.csv")
+```
