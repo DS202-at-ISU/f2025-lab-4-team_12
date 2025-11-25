@@ -1,5 +1,141 @@
 ---
-title: "progress-report-kellyarr"
+title: "Progress Report"
+author: "Kelly Arriaza"
+date: "2025-11-24"
 output: html_document
 ---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+install.packages (c("Lahman", "janitor"))
+install.packages("stringr")
+
+
+library(rvest)
+library(dplyr)
+library(stringr)
+library(tidyr)
+library(Lahman)
+library(stringi)
+library(janitor)
+library(ggplot2)
+
+```
+
+
+```{r}
+#scraping data
+
+link <- "https://www.baseball-reference.com/awards/hof_2025.shtml"
+
+page <- read_html(link)
+
+hof_table <- page |> html_table(fill= TRUE)
+
+bbwaa_raw <- tables[[1]]
+
+
+
+header_row <- which(bbwaa_raw[, 1] == "Rk")[1]  
+
+colnames(bbwaa_raw) <- bbwaa_raw[header_row, ]
+
+bbwaa <- bbwaa_raw[-c(1:header_row), ]
+
+
+head(bbwaa_raw)
+```
+```{r}
+#cleaning data
+bbwaa <- bbwaa_raw %>%
+  select(`Rk`, `Name`, Votes, `%vote`) %>%
+  rename(full_name = Name, votes = Votes)
+
+bbwaa <- bbwaa %>%
+  filter(!is.na(votes), votes != "") %>%  # remove blanks
+  mutate(votes = suppressWarnings(as.numeric(votes))) %>%
+  filter(!is.na(votes)) %>%
+  mutate(
+    yearID = 2025,
+    votedBy = "BBWAA",
+    ballots = 394,
+    needed = 296,
+    inducted = if_else(votes >= needed, "Y", "N"),
+    category = NA,
+    needed_note = NA
+  )
+
+
+
+bbwaa <- bbwaa %>%
+  mutate(full_name = stri_trans_general(full_name, "Latin-ASCII")%>% str_squish())
+
+ppl_clean <- People %>%
+  mutate(full_name = paste(nameFirst, nameLast)) %>%
+  mutate(full_name = stri_trans_general(full_name, "Latin-ASCII") %>% str_squish())
+
+
+bbwaa <- bbwaa %>%
+  left_join(ppl_clean %>% select(full_name, playerID), by = "full_name")
+
+
+hof <- HallOfFame %>%
+  filter(yearID != 2025) %>%
+  bind_rows(bbwaa)
+
+#checking for missing IDs for 2025
+bbwaa_2025 <- hof %>%
+  filter(yearID == 2025, votedBy == "BBWAA")
+
+missing_ids <- bbwaa_2025 %>%
+  filter(is.na(playerID)) %>%
+  select(playerID, votes, inducted)
+
+missing_ids
+
+#matching format of Lahman's data
+hof <- hof %>%
+  mutate(
+    playerID    = as.character(playerID),
+    yearID      = as.integer(yearID),
+    votedBy     = as.character(votedBy),
+    ballots     = as.integer(ballots),
+    needed      = as.integer(needed),
+    votes       = as.integer(votes),
+    inducted    = as.character(inducted),
+    category    = as.character(category),
+    needed_note = as.character(needed_note)
+  ) %>%
+  select(playerID, yearID, votedBy, ballots, needed, votes, inducted, category, needed_note)
+
+
+#plot (1936-2025)
+ggplot(hof, aes(x = yearID, fill = inducted)) +
+  geom_bar() +
+  scale_x_continuous(limits = c(1936, 2025)) +
+  labs(
+    title = "Hall of Fame Ballots (1936–2025)",
+    x = "Election Year",
+    y = "Number of Candidates",
+    fill = "Inducted"
+  ) +
+  theme_minimal()
+
+#plot (2025)
+bbwaa_2025 %>%
+  ggplot(aes(x = votes / ballots)) +
+  geom_histogram(binwidth = 0.025, color = "white") +
+  scale_x_continuous(labels = scales::percent_format(accuracy = 1)) +
+  labs(title = "2025 Vote Share Distribution",
+       x = "Vote share",
+       y = "Count") +
+  theme_minimal()
+
+```
+
+```{r}
+readr::write_csv(bbwaa_2025, "HallOfFame_2025_BBWAA.csv")
+```
+
+
 
